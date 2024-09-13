@@ -1,0 +1,12 @@
+name: 'Sync Umbrella Sub Chart Versions'
+description: 'Align the versions of all subcharts in a Helm umbrella chart to the version of the root chart'
+inputs:
+  chart-path:
+    description: 'Path to the umbrella chart'
+    required: false
+    default: 'charts'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.chart-path }}

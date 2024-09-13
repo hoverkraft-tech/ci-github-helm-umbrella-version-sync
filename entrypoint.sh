@@ -12,12 +12,13 @@ echo "Root chart version is $ROOT_VERSION"
 
 # Update the version of all subcharts
 echo "Updating the version of all subcharts to $ROOT_VERSION"
-for subchart in "$CHART_PATH/charts"/*; do
-  echo "Updating version of subchart $subchart"
-  if [ -d "$subchart" ]; then
-    yq e -i ".version = \"$ROOT_VERSION\"" "$subchart/Chart.yaml"
-    echo "Updated version of subchart $subchart to $ROOT_VERSION"
-  fi
+find "$CHART_PATH/charts" -type f -name "Chart.yaml" | while read -r chart_file; do
+  subchart_dir=$(dirname "$chart_file")
+  real_subchart_dir=$(realpath "$subchart_dir")
+  # Process the real_subchart_dir
+  echo "Updating version of subchart $real_subchart_dir"
+  yq e -i ".version = \"$ROOT_VERSION\"" "$chart_file"
+  echo "Updated version of subchart $real_subchart_dir to $ROOT_VERSION"
 done
 
 # Rebuild Helm dependencies

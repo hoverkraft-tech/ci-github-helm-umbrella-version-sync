@@ -48,6 +48,53 @@ update_dependencies() {
   done
 }
 
+# Function to update local file dependencies in Chart.lock
+update_local_dependencies_in_lock() {
+  local lock_file="$CHART_PATH/Chart.lock"
+  local temp_file_l=$(mktemp)
+  local temp_file_r=$(mktemp)
+
+  set -x
+
+  echo "Updating local file dependencies in $lock_file"
+
+  # extract and update local dependencies only
+  ROOT_VERSION="$ROOT_VERSION" \
+  yq e '
+    [
+      .dependencies[]                 |
+      select(.repository              |
+      test("^file://.*"))             |
+      .version |= env(ROOT_VERSION)
+    ]
+  ' "$lock_file" > "$temp_file_l"
+
+  # extract remote dependencies only
+  yq e '
+    [
+      .dependencies[]                 |
+      select(.repository              |
+      test("^file://.*") | not)
+    ]
+  ' "$lock_file" > "$temp_file_r"
+
+  # merge updated local dependencies with remote dependencies
+  L="${temp_file_l}" \
+  R="${temp_file_r}" \
+  yq e -i '.dependencies *= load(env(L)) + load(env(R))' "$lock_file"
+
+  # # Calculate new digest
+  local new_digest=$(sha256sum "$temp_file_l" | awk '{print $1}')
+  yq e -i ".digest = \"sha256:$new_digest\"" "$lock_file"
+
+  # # Update generated timestamp
+  local new_timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  yq e -i ".generated = \"$new_timestamp\"" "$lock_file"
+
+  # Cleanup
+  rm -f "$temp_file_l" "$temp_file_r"
+}
+
 # Function to rebuild Helm dependencies
 rebuild_helm_dependencies() {
   if [ -f "$CHART_PATH/Chart.lock" ]; then
@@ -77,6 +124,9 @@ update_subchart_versions "$ROOT_VERSION"
 update_dependencies
 
 # Rebuild Helm dependencies
-rebuild_helm_dependencies
+# rebuild_helm_dependencies
+
+# update local file dependencies in Chart.lock
+update_local_dependencies_in_lock
 
 echo "All subchart versions have been aligned to version $ROOT_VERSION and dependencies updated"

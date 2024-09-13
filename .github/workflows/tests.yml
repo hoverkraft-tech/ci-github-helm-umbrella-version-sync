@@ -1,0 +1,39 @@
+# .github/workflows/tests.yml
+name: Validate action
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Build Docker image
+      run: docker build -t hus .
+
+    - name: Run version alignment
+      run: docker run --rm -v ${{ github.workspace }}/tests/charts/umbrella:/charts hus /charts
+
+    - name: Check if versions are aligned
+      run: |
+        ROOT_VERSION=$(yq e '.version' tests/charts/umbrella/Chart.yaml)
+        SUB1_VERSION=$(yq e '.version' tests/charts/umbrella/charts/sub1/Chart.yaml)
+        SUB2_VERSION=$(yq e '.version' tests/charts/umbrella/charts/sub2/Chart.yaml)
+        if [ "$ROOT_VERSION" != "$SUB1_VERSION" ] || [ "$ROOT_VERSION" != "$SUB2_VERSION" ]; then
+          echo "Subchart versions are not aligned with the root chart version"
+          exit 1
+        else
+          echo "Subchart versions are aligned with the root chart version"
+        fi
